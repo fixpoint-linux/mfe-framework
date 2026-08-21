@@ -27,6 +27,11 @@ const routes = [
     template: 'user',
     name: 'user',
   },
+  {
+    path: '/plp',
+    template: 'plp',
+    name: 'plp',
+  },
 ];
 
 // Templates (inlined for demo simplicity - in production these would be fetched)
@@ -42,6 +47,11 @@ const templates: Record<string, string> = {
   user: `<div>
     <header data-mfe="/mf/header"></header>
     <main data-mfe="/mf/user"></main>
+  </div>`,
+  plp: `<div>
+    <header data-mfe="/mf/header"></header>
+    <main data-mfe="/mf/plp"></main>
+    <aside data-mfe="/mf/minibasket"></aside>
   </div>`,
 };
 
@@ -82,11 +92,19 @@ createApp({
     return module.default || module;
   },
   ssr: true, // Enable SSR rehydration if present
+  // Initialize with empty basket state
+  initialState: {
+    basket: [],
+  },
 }).then((app) => {
   console.log('App started', app);
   
   // Expose app globally for debugging
   (window as any).app = app;
+  
+  // Log bus and store for debugging
+  console.log('Bus:', app.bus);
+  console.log('Store:', app.store);
 }).catch((err) => {
   console.error('Failed to start app:', err);
 });

@@ -7,6 +7,8 @@
 import { reconcile, createRegistry, type Registry, type ReconcileOptions, type HostInterface, type MFE } from '@mfe/core';
 import { createRouter, type Router, type Route, type RouterNavigateEvent } from './router.js';
 import { createTemplateLoader, type TemplateLoader } from './template-loader.js';
+import { createBus, type Bus } from './bus.js';
+import { createStore, type Store } from './store.js';
 
 export interface AppRoute {
   /** The path pattern (supports :param segments). */
@@ -36,7 +38,7 @@ export interface CreateAppOptions {
   loadTemplate?: (name: string) => Promise<Element>;
   /**
    * The host interface to pass to MFEs.
-   * If not provided, a default host with addHeadTag is created.
+   * If not provided, a default host with addHeadTag, bus, and store is created.
    */
   host?: HostInterface;
   /**
@@ -50,6 +52,18 @@ export interface CreateAppOptions {
    * Defaults to true.
    */
   ssr?: boolean;
+  /**
+   * Optional event type map for the bus.
+   * If provided, bus will be typed accordingly.
+   * Defaults to an empty record (untyped bus).
+   */
+  busEvents?: Record<string, unknown>;
+  /**
+   * Optional initial state for the store.
+   * If provided, store will be typed accordingly.
+   * Defaults to an empty object (untyped store).
+   */
+  initialState?: object;
 }
 
 /**
@@ -64,6 +78,10 @@ export interface App {
   registry: Registry;
   /** The current routes configuration. */
   routes: AppRoute[];
+  /** The event bus instance. */
+  bus: Bus<Record<string, unknown>>;
+  /** The state store instance. */
+  store: Store<object>;
   /**
    * Navigate to a path programmatically.
    */
@@ -83,9 +101,14 @@ export interface App {
 }
 
 /**
- * Default host implementation.
+ * Default host implementation with bus and store.
  */
-function createDefaultHost(): HostInterface {
+function createDefaultHost(opts: { busEvents?: Record<string, unknown>; initialState?: object } = {}): HostInterface & {
+  bus: Bus<Record<string, unknown>>;
+  store: Store<object>;
+} {
+  const bus = createBus<Record<string, unknown>>();
+  const store = createStore<object>(opts.initialState ?? {});
   return {
     addHeadTag(node: Node): () => void {
       document.head.appendChild(node);
@@ -93,6 +116,8 @@ function createDefaultHost(): HostInterface {
         document.head.removeChild(node);
       };
     },
+    bus,
+    store,
   };
 }
 
@@ -135,8 +160,19 @@ function normalizeLoader(loader?: (name: string) => Promise<unknown>): (name: st
  * has an 'ssr' attribute (indicating server-rendered content).
  */
 export async function createApp(opts: CreateAppOptions): Promise<App> {
-  const { root, routes: routesOrUrl, importModule, loadTemplate: customLoadTemplate, host = createDefaultHost(), baseURL = '', ssr = true } = opts;
+  const { root, routes: routesOrUrl, importModule, loadTemplate: customLoadTemplate, host: customHost, baseURL = '', ssr = true, busEvents, initialState } = opts;
   const loadModule = normalizeLoader(importModule);
+
+  // Create host with bus and store if not provided
+  const defaultHost = createDefaultHost({ busEvents, initialState });
+  // Ensure host always has bus and store, merging with custom host properties
+  const host: HostInterface & { bus: Bus<Record<string, unknown>>; store: Store<object> } = {
+    ...defaultHost,
+    ...(customHost || {}),
+    // Ensure bus and store are always present
+    bus: defaultHost.bus,
+    store: defaultHost.store,
+  };
 
   // Resolve routes (either inline or from URL)
   let routes: AppRoute[];
@@ -259,6 +295,8 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     templateLoader,
     registry,
     routes,
+    bus: host.bus,
+    store: host.store,
     navigate(path: string): void {
       router.navigate(path);
     },

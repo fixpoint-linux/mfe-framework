@@ -55,9 +55,15 @@ export interface HostInterface {
    * Returns a disposer that removes the node.
    */
   addHeadTag(node: Node): () => void;
-  /** Optional cross-MFE event bus (added by @mfe/framework). */
+  /**
+   * Optional cross-MFE event bus (added by @mfe/framework).
+   * Type: Bus<Events> from @mfe/framework/bus — a typed publish/subscribe bus.
+   */
   bus?: unknown;
-  /** Optional shared state store (added by @mfe/framework). */
+  /**
+   * Optional shared state store (added by @mfe/framework).
+   * Type: Store<T> from @mfe/framework/store — an observable state container.
+   */
   store?: unknown;
 }
 
