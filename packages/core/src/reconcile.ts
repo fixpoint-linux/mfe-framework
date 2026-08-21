@@ -83,7 +83,17 @@ export async function reconcile(root: Element, opts: ReconcileOptions): Promise<
       // SAME MFE + SAME REF → transplant live DOM, preserve state, no re-render.
       transplant(existing.element, slot.element);
       existing.element = slot.element;
-      // Keep props in sync with the latest slot.
+      // If the slot's props changed at a stable ref, the MFE must be told to
+      // re-render; otherwise we'd silently render stale props while the
+      // registry (and future unmount ctx) carry props the MFE never saw.
+      if (!shallowEqual(existing.props, slot.props)) {
+        const ctx: MountContext = { host, ref: slot.ref, props: slot.props };
+        try {
+          await existing.mfe.update(existing.element, slot.element, ctx);
+        } catch (error) {
+          report(onError, { action: 'update', name: slot.name, ref: slot.ref, element: slot.element, error });
+        }
+      }
       existing.props = slot.props;
       registry.set(existing);
       continue;
@@ -95,7 +105,14 @@ export async function reconcile(root: Element, opts: ReconcileOptions): Promise<
       await existing.mfe.update(existing.element, slot.element, ctx);
     } catch (error) {
       report(onError, { action: 'update', name: slot.name, ref: slot.ref, element: slot.element, error });
-      // Leave the registry entry untouched so a later render can retry.
+      // Best-effort fallback: move whatever live DOM survives so the MFE stays
+      // visible in the new slot, and adopt the new ref so future renders
+      // transplant instead of retrying a failing update.
+      transplant(existing.element, slot.element);
+      existing.element = slot.element;
+      existing.ref = slot.ref;
+      existing.props = slot.props;
+      registry.set(existing);
       continue;
     }
     existing.element = slot.element;
@@ -171,4 +188,17 @@ function report(onError: (err: ReconcileError) => void, err: ReconcileError): vo
   } catch {
     // The error handler itself must never break reconciliation.
   }
+}
+
+/** True when `a` and `b` have the same own keys and shallow-equal values. */
+function shallowEqual(a?: Record<string, unknown>, b?: Record<string, unknown>): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
 }

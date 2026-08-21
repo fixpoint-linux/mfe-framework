@@ -197,6 +197,32 @@ describe('reconcile', () => {
     assert.deepEqual(calls.mount[0].ctx.props, { sku: 'A1' });
   });
 
+  it('triggers update when props change at a stable ref, but transplants on unchanged props', async () => {
+    const doc = makeDoc();
+    const registry = createRegistry();
+    const host = makeHost();
+    const { mfe, calls } = createMfe();
+    const withProps = (sku) =>
+      `<div><section data-mfe="x" data-mfe-props='{"sku":"${sku}"}'></section></div>`;
+
+    // First render — mount with props {sku:A1}.
+    await reconcile(loadTemplate(withProps('A1'), doc), { loadModule: async () => mfe, host, registry });
+    assert.equal(calls.mount.length, 1);
+    assert.deepEqual(calls.mount[0].ctx.props, { sku: 'A1' });
+    assert.equal(calls.update.length, 0);
+
+    // Same ref, UNCHANGED props → transplant only (no re-render).
+    await reconcile(loadTemplate(withProps('A1'), doc), { loadModule: async () => mfe, host, registry });
+    assert.equal(calls.update.length, 0);
+
+    // Same ref, CHANGED props → transplant + update() so the MFE re-renders with new props.
+    await reconcile(loadTemplate(withProps('A2'), doc), { loadModule: async () => mfe, host, registry });
+    assert.equal(calls.update.length, 1);
+    assert.deepEqual(calls.update[0].ctx.props, { sku: 'A2' });
+    // Registry props now reflect the latest slot.
+    assert.deepEqual(registry.get('x').props, { sku: 'A2' });
+  });
+
   it('reports load errors via onError and leaves the slot unmounted', async () => {
     const doc = makeDoc();
     const registry = createRegistry();
@@ -240,26 +266,31 @@ describe('reconcile', () => {
     assert.equal(good.calls.mount.length, 1);
   });
 
-  it('keeps the registry entry on update failure so a later render can retry', async () => {
+  it('transplants and adopts the new ref when update fails (MFE stays visible)', async () => {
     const doc = makeDoc();
     const registry = createRegistry();
     const host = makeHost();
+    let updates = 0;
     const mfe = {
       async mount(el) { el.innerHTML = '<i>stable</i>'; },
-      async update() { throw new Error('update fail'); },
+      async update() { updates++; throw new Error('update fail'); },
       async unmount() {},
     };
     await reconcile(loadTemplate(T_ONE_SLOT, doc), { loadModule: async () => mfe, host, registry });
-    const before = registry.get('header');
 
     const errs = [];
-    await reconcile(loadTemplate(T_MOVED, doc), { loadModule: async () => mfe, host, registry, onError: (e) => errs.push(e) });
+    const root2 = loadTemplate(T_MOVED, doc);
+    await reconcile(root2, { loadModule: async () => mfe, host, registry, onError: (e) => errs.push(e) });
 
     assert.equal(errs.length, 1);
     assert.equal(errs[0].action, 'update');
-    // Entry retains its previous element/ref (still points at the mounted slot).
-    assert.strictEqual(registry.get('header'), before);
-    assert.equal(registry.get('header').ref, 'div[0]/section[0]');
+    // The live content survives into the new slot, and the entry adopts the new ref.
+    const newSlot = root2.querySelector('section[data-mfe="header"]');
+    assert.equal(newSlot.innerHTML, '<i>stable</i>');
+    assert.equal(registry.get('header').ref, 'div[0]/section[1]');
+    // A follow-up render of the same moved template transplants (no retry of update).
+    await reconcile(loadTemplate(T_MOVED, doc), { loadModule: async () => mfe, host, registry, onError: () => {} });
+    assert.equal(updates, 1);
   });
 
   it('continues even if the onError handler itself throws', async () => {
