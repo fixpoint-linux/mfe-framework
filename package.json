@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "examples/*"
+    "packages/*"
   ],
   "scripts": {
     "build": "tsc -b",
-    "test": "node --test \"packages/*/test/*.test.js\" \"examples/*/test/*.test.js\"",
+    "test": "node --test \"packages/*/test/*.test.js\"",
     "typecheck": "tsc -b"
   },
   "devDependencies": {

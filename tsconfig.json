@@ -2,7 +2,6 @@
   "files": [],
   "references": [
     { "path": "packages/core" },
-    { "path": "packages/framework" },
-    { "path": "examples/demo" }
+    { "path": "packages/framework" }
   ]
 }
