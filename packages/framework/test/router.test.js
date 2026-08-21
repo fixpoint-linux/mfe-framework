@@ -187,6 +187,78 @@ describe('createRouter', () => {
     assert.equal(navigateEvents.length, 1);
   });
 
+  it('intercepts cross-origin links with data-mfe-route, navigating in-shell', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com/users/123';
+    link.setAttribute('data-mfe-route', '/users/123');
+    document.body.appendChild(link);
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    link.dispatchEvent(clickEvent);
+
+    assert.equal(clickEvent.defaultPrevented, true);
+    assert.equal(navigateEvents.length, 2);
+    assert.equal(navigateEvents[1].pathname, '/users/123');
+    assert.deepEqual(navigateEvents[1].params, { id: '123' });
+  });
+
+  it('does not intercept data-mfe-route clicks with modifier keys (real URL wins)', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com/users/123';
+    link.setAttribute('data-mfe-route', '/users/123');
+    document.body.appendChild(link);
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    });
+
+    link.dispatchEvent(clickEvent);
+
+    assert.equal(clickEvent.defaultPrevented, false);
+    assert.equal(navigateEvents.length, 1);
+  });
+
+  it('does not intercept data-mfe-route clicks with target=_blank (real URL wins)', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com/users/123';
+    link.setAttribute('data-mfe-route', '/users/123');
+    link.target = '_blank';
+    document.body.appendChild(link);
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    link.dispatchEvent(clickEvent);
+
+    assert.equal(clickEvent.defaultPrevented, false);
+    assert.equal(navigateEvents.length, 1);
+  });
+
+  it('leaves data-mfe-route clicks to the browser when the local route does not match', () => {
+    const link = document.createElement('a');
+    link.href = 'https://example.com/not-a-route';
+    link.setAttribute('data-mfe-route', '/not-a-route');
+    document.body.appendChild(link);
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    link.dispatchEvent(clickEvent);
+
+    assert.equal(clickEvent.defaultPrevented, false);
+    assert.equal(navigateEvents.length, 1);
+  });
+
   it('does not intercept hash-only links', () => {
     const link = document.createElement('a');
     link.href = '#section';

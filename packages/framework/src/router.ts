@@ -134,9 +134,17 @@ export interface Router {
 /**
  * Create a browser-native router.
  *
- * Listens to click events on the document for same-origin <a> navigation
- * (no target=_blank, no modifier keys), uses history.pushState for navigation,
- * dispatches a custom `app:route` event, and handles popstate for back/forward.
+ * Listens to click events on the document for <a> navigation, uses
+ * history.pushState for navigation, dispatches a custom `app:route` event,
+ * and handles popstate for back/forward.
+ *
+ * Click handling:
+ * - Same-origin links navigate in-shell (no target=_blank, no modifier keys).
+ * - Cross-origin links are left to the browser, UNLESS the anchor carries a
+ *   `data-mfe-route` attribute naming a local route — then a plain click
+ *   navigates in-shell to that route (for cross-origin MFE nav links whose
+ *   `href` is the real absolute URL). Modifier clicks / target=_blank still
+ *   fall through to the real URL.
  */
 export function createRouter(opts: CreateRouterOptions): Router {
   const { routes, onNavigate, interceptClicks = true, renderOnInit = true, basePath = '/' } = opts;
@@ -173,6 +181,34 @@ export function createRouter(opts: CreateRouterOptions): Router {
 
     // Skip if target=_blank or other special targets
     if (target.target && target.target !== '_self') return;
+
+    // data-mfe-route: a cross-origin MFE nav link. The anchor's `href` is the
+    // real absolute URL (correct for hover/copy/open-in-new-tab/SEO), but a
+    // plain click should navigate in-shell to the named local route instead of
+    // leaving the page. Only intercepted when that local route actually
+    // matches — otherwise the (cross-origin) href is left to the browser.
+    const mfeRoute = target.getAttribute('data-mfe-route');
+    if (mfeRoute) {
+      const mfeUrl = new URL(mfeRoute, window.location.href);
+      const mfeMatch = resolveMatch(mfeUrl.pathname);
+      if (mfeMatch) {
+        ev.preventDefault();
+        window.history.pushState({}, '', mfeUrl);
+        onNavigate({
+          route: mfeMatch.route,
+          pathname: mfeUrl.pathname,
+          params: mfeMatch.params,
+          url: mfeUrl,
+        });
+        // Dispatch custom event for any other listeners
+        window.dispatchEvent(
+          new CustomEvent('app:route', {
+            detail: { route: mfeMatch.route, pathname: mfeUrl.pathname, params: mfeMatch.params, url: mfeUrl },
+          }),
+        );
+      }
+      return;
+    }
 
     // Skip if not same-origin
     const href = target.getAttribute('href');
