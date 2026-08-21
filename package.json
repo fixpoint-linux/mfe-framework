@@ -1,0 +1,15 @@
+{
+  "name": "mfe-framework",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "node --test packages/*/test examples/*/test 2>/dev/null || node --test",
+    "typecheck": "tsc -b --noEmit"
+  }
+}

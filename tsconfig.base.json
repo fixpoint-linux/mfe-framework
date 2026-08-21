@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "esnext",
+    "declaration": true,
+    "strict": true,
+    "lib": ["DOM", "ES2022"],
+    "sourceMap": true,
+    "composite": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "exclude": ["node_modules", "dist", "build"]
+}
