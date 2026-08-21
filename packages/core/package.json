@@ -7,6 +7,6 @@
   "private": true,
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b"
   }
 }
