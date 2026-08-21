@@ -11,5 +11,9 @@
     "build": "tsc -b",
     "test": "node --test \"packages/*/test/*.test.js\" \"examples/*/test/*.test.js\"",
     "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.11.6",
+    "typescript": "^5.9.3"
   }
 }
