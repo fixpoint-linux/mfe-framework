@@ -154,6 +154,19 @@ export function createRouter(opts: CreateRouterOptions): Router {
   // navigation event still carries the original (unstripped) pathname.
   const resolveMatch = (pathname: string) => matchRoute(stripBasePath(pathname, basePath), routes);
 
+  // Route paths are defined relative to basePath. When pushing a URL for a
+  // route (programmatic navigate/replace, or a data-mfe-route in-shell nav),
+  // re-prefix the basePath so the address bar reflects the real location (e.g.
+  // route '/fixpoint-linux' under basePath '/dhake' -> '/dhake/fixpoint-linux').
+  // Idempotent: a path already under the base is returned unchanged.
+  const toFullPath = (path: string): string => {
+    const base = basePath && basePath !== '/' ? basePath.replace(/\/+$/, '') : '';
+    if (!base) return path;
+    if (path === base || path.startsWith(base + '/')) return path;
+    if (path === '/') return base + '/';
+    return base + '/' + path.replace(/^\/+/, '');
+  };
+
   const handlePopState = (): void => {
     const pathname = window.location.pathname;
     const match = resolveMatch(pathname);
@@ -190,20 +203,25 @@ export function createRouter(opts: CreateRouterOptions): Router {
     const mfeRoute = target.getAttribute('data-mfe-route');
     if (mfeRoute) {
       const mfeUrl = new URL(mfeRoute, window.location.href);
-      const mfeMatch = resolveMatch(mfeUrl.pathname);
+      // mfeRoute is a local route path (relative to basePath); strip any base
+      // for matching, then re-prefix it for the pushed URL so the address bar
+      // stays under the basePath.
+      const mfePath = stripBasePath(mfeUrl.pathname, basePath);
+      const mfeMatch = matchRoute(mfePath, routes);
       if (mfeMatch) {
         ev.preventDefault();
-        window.history.pushState({}, '', mfeUrl);
+        const fullUrl = new URL(toFullPath(mfePath), window.location.href);
+        window.history.pushState({}, '', fullUrl);
         onNavigate({
           route: mfeMatch.route,
-          pathname: mfeUrl.pathname,
+          pathname: fullUrl.pathname,
           params: mfeMatch.params,
-          url: mfeUrl,
+          url: fullUrl,
         });
         // Dispatch custom event for any other listeners
         window.dispatchEvent(
           new CustomEvent('app:route', {
-            detail: { route: mfeMatch.route, pathname: mfeUrl.pathname, params: mfeMatch.params, url: mfeUrl },
+            detail: { route: mfeMatch.route, pathname: fullUrl.pathname, params: mfeMatch.params, url: fullUrl },
           }),
         );
       }
@@ -264,16 +282,17 @@ export function createRouter(opts: CreateRouterOptions): Router {
       const url = new URL(path, window.location.href);
       const match = resolveMatch(url.pathname);
       if (match) {
-        window.history.pushState({}, '', url);
+        const fullUrl = new URL(toFullPath(url.pathname), window.location.href);
+        window.history.pushState({}, '', fullUrl);
         onNavigate({
           route: match.route,
-          pathname: url.pathname,
+          pathname: fullUrl.pathname,
           params: match.params,
-          url,
+          url: fullUrl,
         });
         window.dispatchEvent(
           new CustomEvent('app:route', {
-            detail: { route: match.route, pathname: url.pathname, params: match.params, url },
+            detail: { route: match.route, pathname: fullUrl.pathname, params: match.params, url: fullUrl },
           }),
         );
       }
@@ -282,16 +301,17 @@ export function createRouter(opts: CreateRouterOptions): Router {
       const url = new URL(path, window.location.href);
       const match = resolveMatch(url.pathname);
       if (match) {
-        window.history.replaceState({}, '', url);
+        const fullUrl = new URL(toFullPath(url.pathname), window.location.href);
+        window.history.replaceState({}, '', fullUrl);
         onNavigate({
           route: match.route,
-          pathname: url.pathname,
+          pathname: fullUrl.pathname,
           params: match.params,
-          url,
+          url: fullUrl,
         });
         window.dispatchEvent(
           new CustomEvent('app:route', {
-            detail: { route: match.route, pathname: url.pathname, params: match.params, url },
+            detail: { route: match.route, pathname: fullUrl.pathname, params: match.params, url: fullUrl },
           }),
         );
       }

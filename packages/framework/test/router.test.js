@@ -366,6 +366,49 @@ describe('createRouter with basePath', () => {
     router.destroy();
   });
 
+  it("with basePath '/dhake', navigate('/home') pushes the basePath-prefixed URL '/dhake/home'", () => {
+    window.history.pushState({}, '', '/dhake/');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }, { path: '/home' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    router.navigate('/home');
+    assert.equal(events.length, 2);
+    assert.equal(events[1].pathname, '/dhake/home');
+    assert.equal(window.location.pathname, '/dhake/home');
+    assert.deepEqual(events[1].params, {});
+
+    router.destroy();
+  });
+
+  it("with basePath '/dhake', data-mfe-route click pushes the basePath-prefixed URL", () => {
+    window.history.pushState({}, '', '/dhake/');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }, { path: '/fixpoint-linux' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    const link = document.createElement('a');
+    link.href = 'https://fixpointlinux.org/';
+    link.setAttribute('data-mfe-route', '/fixpoint-linux');
+    document.body.appendChild(link);
+
+    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(clickEvent);
+
+    assert.equal(clickEvent.defaultPrevented, true);
+    assert.equal(events.length, 2);
+    assert.equal(events[1].pathname, '/dhake/fixpoint-linux');
+    assert.equal(window.location.pathname, '/dhake/fixpoint-linux');
+
+    router.destroy();
+  });
+
   it("with basePath '/dhake', a non-matching '/nonexistent' still does NOT match", () => {
     window.history.pushState({}, '', '/nonexistent');
     const events = [];
