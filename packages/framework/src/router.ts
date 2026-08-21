@@ -37,6 +37,12 @@ export interface CreateRouterOptions {
    * Defaults to true.
    */
   interceptClicks?: boolean;
+  /**
+   * Whether to run `onNavigate` immediately for the current location at
+   * creation time. Defaults to true. Set to false when the caller (e.g.
+   * createApp) performs and awaits the initial render itself.
+   */
+  renderOnInit?: boolean;
 }
 
 /**
@@ -110,7 +116,7 @@ export interface Router {
  * dispatches a custom `app:route` event, and handles popstate for back/forward.
  */
 export function createRouter(opts: CreateRouterOptions): Router {
-  const { routes, onNavigate, interceptClicks = true } = opts;
+  const { routes, onNavigate, interceptClicks = true, renderOnInit = true } = opts;
 
   const handlePopState = (): void => {
     const pathname = window.location.pathname;
@@ -128,8 +134,11 @@ export function createRouter(opts: CreateRouterOptions): Router {
   const handleClick = (ev: MouseEvent): void => {
     if (!interceptClicks) return;
 
-    const target = (ev.target as HTMLElement).closest('a');
-    if (!target || !(target instanceof HTMLAnchorElement)) return;
+    const node = ev.target as Element | null;
+    const target = node && typeof node.closest === 'function' ? node.closest('a') : null;
+    // `tagName === 'A'` is used instead of `instanceof HTMLAnchorElement` so the
+    // router works in DOM environments without that global (e.g. happy-dom / SSR).
+    if (!target || (target as Element).tagName !== 'A') return;
 
     // Skip if modifier key pressed
     if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
@@ -168,15 +177,17 @@ export function createRouter(opts: CreateRouterOptions): Router {
   };
 
   // Initial navigation
-  const pathname = window.location.pathname;
-  const match = matchRoute(pathname, routes);
-  if (match) {
-    onNavigate({
-      route: match.route,
-      pathname,
-      params: match.params,
-      url: new URL(window.location.href),
-    });
+  if (renderOnInit) {
+    const pathname = window.location.pathname;
+    const match = matchRoute(pathname, routes);
+    if (match) {
+      onNavigate({
+        route: match.route,
+        pathname,
+        params: match.params,
+        url: new URL(window.location.href),
+      });
+    }
   }
 
   window.addEventListener('popstate', handlePopState);

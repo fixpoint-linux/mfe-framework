@@ -53,15 +53,12 @@ export function createTemplateLoader(opts: CreateTemplateLoaderOptions = {}): Te
       if (!html) {
         let url: URL;
         if (baseURL) {
-          // If baseURL is provided, resolve the template name relative to it
-          try {
-            url = new URL(`${name}.html`, new URL(baseURL, window.location.href));
-          } catch {
-            // If baseURL is not a valid URL, try to use it as a path
-            url = new URL(`${baseURL}/${name}.html`, window.location.href);
-          }
+          // Join baseURL + name with an explicit slash so the last path segment
+          // of baseURL is kept (plain `new URL(name, base)` would drop it).
+          const joined = `${baseURL.replace(/\/$/, '')}/${name}.html`;
+          url = new URL(joined, window.location.href);
         } else {
-          // Default: resolve relative to current location
+          // Default: resolve relative to current location.
           url = new URL(`${name}.html`, window.location.href);
         }
         const response = await fetchImpl(url.toString());

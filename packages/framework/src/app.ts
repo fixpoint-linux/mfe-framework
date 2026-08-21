@@ -107,6 +107,23 @@ async function defaultImportModule(name: string): Promise<MFE> {
 }
 
 /**
+ * Normalize a module loader result into an MFE instance. Handles the ESM
+ * interop shape where dynamic import resolves to `{ default: mfe }`, whether
+ * the loader is the built-in import or a user-supplied one (e.g. a test stub
+ * or import-map loader returning `{ default: mfe }`).
+ */
+function normalizeLoader(loader?: (name: string) => Promise<unknown>): (name: string) => Promise<MFE> {
+  const inner = loader ?? defaultImportModule;
+  return async (name: string): Promise<MFE> => {
+    const mod = (await inner(name)) as unknown;
+    if (mod && typeof mod === 'object' && 'default' in mod && (mod as Record<string, unknown>).default) {
+      return (mod as Record<string, unknown>).default as MFE;
+    }
+    return mod as MFE;
+  };
+}
+
+/**
  * Create a micro-frontend app shell.
  *
  * Wires together:
@@ -119,6 +136,7 @@ async function defaultImportModule(name: string): Promise<MFE> {
  */
 export async function createApp(opts: CreateAppOptions): Promise<App> {
   const { root, routes: routesOrUrl, importModule, loadTemplate: customLoadTemplate, host = createDefaultHost(), baseURL = '', ssr = true } = opts;
+  const loadModule = normalizeLoader(importModule);
 
   // Resolve routes (either inline or from URL)
   let routes: AppRoute[];
@@ -147,6 +165,9 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
   const router = createRouter({
     routes: routes.map((r) => ({ path: r.path, name: r.name })),
     interceptClicks: true,
+    // createApp awaits its own initial render below, so the router must not
+    // also fire onNavigate at creation (would double-render / race).
+    renderOnInit: false,
     onNavigate: async (event: RouterNavigateEvent) => {
       await renderRoute(event.pathname, event.params);
     },
@@ -188,7 +209,7 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
       // In SSR mode, the root already has server-rendered content
       // We need to reconcile against the existing DOM
       await reconcile(root, {
-        loadModule: importModule || defaultImportModule,
+        loadModule,
         host,
         registry,
         onError: (err) => {
@@ -205,18 +226,16 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     // Apply props to the template's slots
     const slots = clone.querySelectorAll('[data-mfe]');
     for (const slot of slots) {
-      if (slot instanceof HTMLElement) {
-        // Merge props into data-mfe-props
-        const existingProps = slot.getAttribute('data-mfe-props');
-        const slotProps = existingProps ? JSON.parse(existingProps) : {};
-        const merged = { ...slotProps, ...props };
-        slot.setAttribute('data-mfe-props', JSON.stringify(merged));
-      }
+      // Merge props into data-mfe-props.
+      const existingProps = slot.getAttribute('data-mfe-props');
+      const slotProps = existingProps ? JSON.parse(existingProps) : {};
+      const merged = { ...slotProps, ...props };
+      slot.setAttribute('data-mfe-props', JSON.stringify(merged));
     }
 
     // Reconcile the new template against the registry
     await reconcile(clone, {
-      loadModule: importModule || defaultImportModule,
+      loadModule,
       host,
       registry,
       onError: (err) => {
@@ -231,7 +250,8 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     root.appendChild(clone);
   }
 
-  // Initial render
+  // Initial render — awaited so createApp resolves only after the first route
+  // is mounted (the router's renderOnInit is disabled to avoid a double render).
   await renderRoute(window.location.pathname);
 
   return {

@@ -5,7 +5,7 @@
     "target": "esnext",
     "declaration": true,
     "strict": true,
-    "lib": ["DOM", "ES2022"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "sourceMap": true,
     "composite": true,
     "declarationMap": true,

@@ -3,7 +3,7 @@ import { Window } from 'happy-dom';
 
 /** A fresh happy-dom Window/Document for testing. */
 export function makeWindow() {
-  return new Window();
+  return new Window({ url: 'https://app.local/' });
 }
 
 /** A fresh happy-dom Document. */
@@ -44,9 +44,10 @@ export function createMfe({ render = () => '' } = {}) {
 
 /**
  * Create a mock fetch that returns templates from an in-memory map.
+ * The returned function also exposes `.templates` so tests can read the map.
  */
 export function createMockFetch(templates = {}) {
-  return async (url) => {
+  const mock = async (url) => {
     const name = Object.keys(templates).find((k) => url.includes(k));
     if (!name) {
       return { ok: false, status: 404 };
@@ -56,6 +57,8 @@ export function createMockFetch(templates = {}) {
       text: async () => templates[name],
     };
   };
+  mock.templates = templates;
+  return mock;
 }
 
 /**

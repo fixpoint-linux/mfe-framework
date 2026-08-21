@@ -26,6 +26,7 @@ describe('createRouter', () => {
     global.window = window;
     global.document = document;
     global.CustomEvent = window.CustomEvent;
+    global.MouseEvent = window.MouseEvent;
     global.history = window.history;
     
     router = createRouter({
@@ -40,6 +41,7 @@ describe('createRouter', () => {
     delete global.window;
     delete global.document;
     delete global.CustomEvent;
+    delete global.MouseEvent;
     delete global.history;
   });
 

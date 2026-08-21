@@ -14,6 +14,7 @@ describe('createApp', () => {
     global.window = window;
     global.document = document;
     global.CustomEvent = window.CustomEvent;
+    global.MouseEvent = window.MouseEvent;
     global.history = window.history;
     global.fetch = null;
   });
@@ -22,6 +23,7 @@ describe('createApp', () => {
     delete global.window;
     delete global.document;
     delete global.CustomEvent;
+    delete global.MouseEvent;
     delete global.history;
     delete global.fetch;
   });

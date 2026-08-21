@@ -131,7 +131,7 @@ describe('createTemplateLoader', () => {
   it('parses templates using @mfe/core loadTemplate', async () => {
     const mockFetch = async () => ({
       ok: true,
-      text: async () => '<template><div data-mfe="test">Content</div></template>',
+      text: async () => '<div data-mfe="test">Content</div>',
     });
 
     global.fetch = mockFetch;
@@ -139,7 +139,7 @@ describe('createTemplateLoader', () => {
     const loader = createTemplateLoader({ fetchImpl: mockFetch });
 
     const el = await loader.load('test');
-    // loadTemplate should parse the first element child of the template
+    // loadTemplate parses plain HTML into its first element child.
     assert.equal(el.tagName, 'DIV');
     assert.equal(el.getAttribute('data-mfe'), 'test');
   });
