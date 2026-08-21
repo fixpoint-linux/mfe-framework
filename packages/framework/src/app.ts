@@ -27,6 +27,14 @@ export interface CreateAppOptions {
   /** Array of route definitions, or a URL to fetch routes from. */
   routes: AppRoute[] | string;
   /**
+   * Optional base path prefix (e.g. '/dhake') for apps served at a subpath
+   * such as a GitHub Pages project site. The prefix is stripped from the
+   * incoming pathname before route matching, so routes are defined relative
+   * to it. This is a *route* prefix — distinct from `baseURL`, which is the
+   * fetch URL for templates. Defaults to '/'.
+   */
+  basePath?: string;
+  /**
    * Function to load an MFE module by name.
    * Defaults to dynamic import using the browser's import map.
    */
@@ -160,7 +168,7 @@ function normalizeLoader(loader?: (name: string) => Promise<unknown>): (name: st
  * has an 'ssr' attribute (indicating server-rendered content).
  */
 export async function createApp(opts: CreateAppOptions): Promise<App> {
-  const { root, routes: routesOrUrl, importModule, loadTemplate: customLoadTemplate, host: customHost, baseURL = '', ssr = true, busEvents, initialState } = opts;
+  const { root, routes: routesOrUrl, importModule, loadTemplate: customLoadTemplate, host: customHost, baseURL = '', ssr = true, basePath = '/', busEvents, initialState } = opts;
   const loadModule = normalizeLoader(importModule);
 
   // Create host with bus and store if not provided
@@ -200,6 +208,7 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
   // Create router
   const router = createRouter({
     routes: routes.map((r) => ({ path: r.path, name: r.name })),
+    basePath,
     interceptClicks: true,
     // createApp awaits its own initial render below, so the router must not
     // also fire onNavigate at creation (would double-render / race).
@@ -209,10 +218,13 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     },
   });
 
-  // Find the route matching a pathname
+  // Find the route matching a pathname (basePath is stripped first, so the
+  // initial pathname on a subpath-deployed app matches routes defined
+  // relative to that subpath).
   function findRoute(pathname: string): { route: AppRoute; params: Record<string, string> } | null {
+    const stripped = stripBasePath(pathname, basePath);
     for (const route of routes) {
-      const params = matchPattern(pathname, route.path);
+      const params = matchPattern(stripped, route.path);
       if (params !== null) {
         return { route, params };
       }
@@ -336,4 +348,16 @@ function matchPattern(pathname: string, pattern: string): Record<string, string>
     }
   }
   return params;
+}
+
+/**
+ * Strip a basePath prefix from a pathname before route matching. See
+ * ./router.ts for the full contract; basePath '/' is a no-op.
+ */
+function stripBasePath(pathname: string, basePath: string): string {
+  const base = basePath && basePath !== '/' ? basePath.replace(/\/+$/, '') : '';
+  if (!base) return pathname;
+  if (pathname === base) return '/';
+  if (pathname.startsWith(base + '/')) return pathname.slice(base.length);
+  return pathname;
 }

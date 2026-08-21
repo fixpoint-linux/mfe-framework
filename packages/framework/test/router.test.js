@@ -240,3 +240,104 @@ describe('createRouter', () => {
     router.destroy();
   });
 });
+
+describe('createRouter with basePath', () => {
+  let window;
+
+  beforeEach(() => {
+    window = makeWindow();
+    global.window = window;
+    global.document = window.document;
+    global.CustomEvent = window.CustomEvent;
+    global.MouseEvent = window.MouseEvent;
+    global.history = window.history;
+  });
+
+  afterEach(() => {
+    delete global.window;
+    delete global.document;
+    delete global.CustomEvent;
+    delete global.MouseEvent;
+    delete global.history;
+  });
+
+  it("with basePath '/dhake', initial pathname '/dhake/' matches route '/' and keeps the original pathname", () => {
+    window.history.pushState({}, '', '/dhake/');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].pathname, '/dhake/');
+    assert.deepEqual(events[0].params, {});
+
+    router.destroy();
+  });
+
+  it("with basePath '/dhake', '/dhake/home' matches route '/home'", () => {
+    window.history.pushState({}, '', '/dhake/');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }, { path: '/home' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    router.navigate('/dhake/home');
+    assert.equal(events.length, 2);
+    assert.equal(events[1].pathname, '/dhake/home');
+    assert.deepEqual(events[1].params, {});
+
+    router.destroy();
+  });
+
+  it("with basePath '/dhake', a non-matching '/nonexistent' still does NOT match", () => {
+    window.history.pushState({}, '', '/nonexistent');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    // Should have no navigation events — '/nonexistent' isn't under the base
+    // path and doesn't match any route.
+    assert.equal(events.length, 0);
+
+    router.destroy();
+  });
+
+  it("with basePath '/dhake', '/dhake/users/123' matches '/users/:id' with params", () => {
+    window.history.pushState({}, '', '/dhake/');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }, { path: '/users/:id' }],
+      basePath: '/dhake',
+      onNavigate: (event) => events.push(event),
+    });
+
+    router.navigate('/dhake/users/123');
+    assert.equal(events.length, 2);
+    assert.equal(events[1].pathname, '/dhake/users/123');
+    assert.deepEqual(events[1].params, { id: '123' });
+
+    router.destroy();
+  });
+
+  it('defaults to basePath "/" (no stripping) so existing behavior is unchanged', () => {
+    window.history.pushState({}, '', '/home');
+    const events = [];
+    const router = createRouter({
+      routes: [{ path: '/' }, { path: '/home' }],
+      onNavigate: (event) => events.push(event),
+    });
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].pathname, '/home');
+
+    router.destroy();
+  });
+});

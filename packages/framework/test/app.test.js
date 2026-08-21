@@ -272,4 +272,34 @@ describe('createApp', () => {
     // Registry should be cleared
     assert.equal(app.registry.size, 0);
   });
+
+  it('rehydrates root instead of clearing it when basePath matches the root route', async () => {
+    // Simulate being served at a GitHub Pages subpath: the initial pathname is
+    // '/dhake/', but the route is defined relative to '/' (i.e. basePath).
+    window.history.pushState({}, '', '/dhake/');
+
+    const root = document.createElement('div');
+    root.setAttribute('ssr', '');
+    root.innerHTML = '<h1>Pre-rendered</h1>';
+    document.body.appendChild(root);
+
+    const app = await createApp({
+      root,
+      routes: [{ path: '/', template: 'home' }],
+      basePath: '/dhake',
+      loadTemplate: async () => {
+        const t = document.createElement('template');
+        t.innerHTML = '<div><h1>Template</h1></div>';
+        return t.content.firstElementChild;
+      },
+      importModule: createMockImport({}),
+    });
+
+    // The root route matched (after basePath is stripped), so the SSR content
+    // is rehydrated in place rather than cleared by the no-match branch.
+    assert.equal(root.querySelector('h1').textContent, 'Pre-rendered');
+    assert.ok(root.firstChild);
+
+    app.destroy();
+  });
 });

@@ -28,6 +28,13 @@ export interface CreateRouterOptions {
   /** Array of route definitions. */
   routes: Route[];
   /**
+   * Optional base path prefix (e.g. '/dhake') for apps served at a subpath
+   * such as a GitHub Pages project site. When set, the prefix is stripped
+   * from incoming pathnames before route matching, so routes are defined
+   * relative to it. Defaults to '/'.
+   */
+  basePath?: string;
+  /**
    * Called when navigation occurs (pushState or popstate).
    * Receives the navigation event with route info and params.
    */
@@ -86,6 +93,22 @@ function matchPattern(pathname: string, pattern: string): Record<string, string>
 }
 
 /**
+ * Strip a basePath prefix from a pathname before route matching.
+ * Both are normalized so leading/trailing slashes don't break comparison.
+ * - basePath '/' (or empty) is a no-op: the pathname is returned unchanged.
+ * - '/dhake' + '/dhake/' -> '/'; '/dhake' + '/dhake/home' -> '/home'.
+ * - A pathname not under basePath is returned unchanged, so a wrong-base
+ *   request falls through to normal (non-)matching instead of 404ing oddly.
+ */
+function stripBasePath(pathname: string, basePath: string): string {
+  const base = basePath && basePath !== '/' ? basePath.replace(/\/+$/, '') : '';
+  if (!base) return pathname;
+  if (pathname === base) return '/';
+  if (pathname.startsWith(base + '/')) return pathname.slice(base.length);
+  return pathname;
+}
+
+/**
  * The router instance returned by createRouter.
  */
 export interface Router {
@@ -116,11 +139,16 @@ export interface Router {
  * dispatches a custom `app:route` event, and handles popstate for back/forward.
  */
 export function createRouter(opts: CreateRouterOptions): Router {
-  const { routes, onNavigate, interceptClicks = true, renderOnInit = true } = opts;
+  const { routes, onNavigate, interceptClicks = true, renderOnInit = true, basePath = '/' } = opts;
+
+  // Resolve a pathname to a route, stripping the basePath prefix first so apps
+  // served at a subpath match routes defined relative to that subpath. The
+  // navigation event still carries the original (unstripped) pathname.
+  const resolveMatch = (pathname: string) => matchRoute(stripBasePath(pathname, basePath), routes);
 
   const handlePopState = (): void => {
     const pathname = window.location.pathname;
-    const match = matchRoute(pathname, routes);
+    const match = resolveMatch(pathname);
     if (match) {
       onNavigate({
         route: match.route,
@@ -158,7 +186,7 @@ export function createRouter(opts: CreateRouterOptions): Router {
     // Prevent default and navigate
     ev.preventDefault();
     const pathname = url.pathname;
-    const match = matchRoute(pathname, routes);
+    const match = resolveMatch(pathname);
     if (match) {
       window.history.pushState({}, '', url);
       onNavigate({
@@ -179,7 +207,7 @@ export function createRouter(opts: CreateRouterOptions): Router {
   // Initial navigation
   if (renderOnInit) {
     const pathname = window.location.pathname;
-    const match = matchRoute(pathname, routes);
+    const match = resolveMatch(pathname);
     if (match) {
       onNavigate({
         route: match.route,
@@ -198,7 +226,7 @@ export function createRouter(opts: CreateRouterOptions): Router {
   return {
     navigate(path: string): void {
       const url = new URL(path, window.location.href);
-      const match = matchRoute(url.pathname, routes);
+      const match = resolveMatch(url.pathname);
       if (match) {
         window.history.pushState({}, '', url);
         onNavigate({
@@ -216,7 +244,7 @@ export function createRouter(opts: CreateRouterOptions): Router {
     },
     replace(path: string): void {
       const url = new URL(path, window.location.href);
-      const match = matchRoute(url.pathname, routes);
+      const match = resolveMatch(url.pathname);
       if (match) {
         window.history.replaceState({}, '', url);
         onNavigate({
